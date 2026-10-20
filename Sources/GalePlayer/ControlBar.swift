@@ -3,8 +3,7 @@ import GaleCore
 
 /// 播放控制条。
 ///
-/// 布局与操作习惯参照暴风影音 Mac 版的控制栏（播放/停止/快进快退/上一个下一个/
-/// 音量/截图/全屏/播放列表开关），并加入 DMM Player 的关键帧按钮（+ / − / 跳转）。
+/// 控制栏：左（截图/静音/音量）· 中（播放控制，严格居中）· 右（关键帧/全屏/面板）。
 ///
 /// 自适应：按可用宽度分三档密度，窄窗口自动收窄间距、隐藏次要信息，
 /// 避免按钮挤压换行或文字截断（修「不同窗口尺寸下排版不一致」）。
@@ -111,7 +110,7 @@ struct ControlBar: View {
         .fixedSize()
     }
 
-    /// 关键帧操作组（DMM 风格：+ 添加、− 删除、⏮⏭ 跳转）
+    /// 关键帧操作组（+ 添加、− 删除、⏮⏭ 跳转）
     private func chapters(density: Density) -> some View {
         HStack(spacing: density.spacing * 0.6) {
             button("plus", help: "添加关键帧") { core.addChapter() }

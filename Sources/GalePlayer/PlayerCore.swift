@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import GaleCore
 
-/// 侧边栏标签 —— 对应 DMM Player 的「プレイリスト・チャプター」面板。
+/// 侧边栏标签：播放列表与关键帧两个面板。
 enum SidebarTab: String, CaseIterable, Identifiable {
     case playlist = "播放列表"
     case chapters = "关键帧"
@@ -39,7 +39,7 @@ final class PlayerCore: ObservableObject {
         didSet { if !isSyncingFromCore { client?.setMuted(isMuted) } }
     }
 
-    // 关键帧（移植自 DMM Player 的 Chapter 体系）
+    // 关键帧（Chapter 体系）
     @Published private(set) var chapterBook: ChapterBook?
     @Published var loopChapters = false
 
@@ -516,7 +516,7 @@ final class PlayerCore: ObservableObject {
         NSApp.keyWindow?.level = isAlwaysOnTop ? .floating : .normal
     }
 
-    // MARK: - 关键帧（DMM Chapter 移植）
+    // MARK: - 关键帧
 
     private func loadChapterBook(for url: URL) {
         let key = MediaKey.make(for: url)

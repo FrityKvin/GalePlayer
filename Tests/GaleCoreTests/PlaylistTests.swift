@@ -1,7 +1,7 @@
 import XCTest
 @testable import GaleCore
 
-/// 播放列表测试，重点覆盖暴风影音原版被用户投诉过的「剧集乱序」问题。
+/// 播放列表测试，重点覆盖「剧集乱序」问题。
 final class PlaylistTests: XCTestCase {
     func testNaturalSortOrdersEpisodesCorrectly() {
         let names = ["第10集.mp4", "第2集.mp4", "第1集.mp4"]

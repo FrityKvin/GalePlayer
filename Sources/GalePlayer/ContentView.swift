@@ -3,7 +3,7 @@ import SwiftUI
 
 /// 主窗口：普通模式 = 左侧视频舞台 + 控制条 + 右侧面板；
 /// 全屏模式 = 纯视频画面，控制条/侧栏全部收起，鼠标活动时底部浮现浮动控制条
-/// （IINA / 暴风影音同款交互），静止约 3 秒自动隐藏，Esc/↩ 退出全屏。
+/// ，静止约 3 秒自动隐藏，Esc/↩ 退出全屏。
 struct ContentView: View {
     @EnvironmentObject private var core: PlayerCore
     @EnvironmentObject private var settings: AppSettings

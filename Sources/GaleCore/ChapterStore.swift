@@ -2,7 +2,7 @@ import Foundation
 
 /// 关键帧持久化。
 ///
-/// 原版 DMM 存 IndexedDB（`lru-store`，key = file_id，value = JSON），
+/// 持久化为 JSON（按 mediaKey 归档）：
 /// 本地播放器改为 Application Support 下的单个 JSON 文件：
 ///   `~/Library/Application Support/<bundle-id>/chapters.json`
 /// 结构：`{ "<mediaKey>": ChapterBook }`，与原名值对语义一致。

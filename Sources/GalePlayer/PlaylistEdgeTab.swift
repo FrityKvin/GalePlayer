@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 播放列表悬浮标签（暴风影音同款交互）。
+/// 播放列表悬浮标签：鼠标滑入显示箭头，点击展开/收起。
 ///
 /// ⚠️ 关键实现约束：**不能**用 `.overlay` 把这个标签叠在视频视图上。
 /// `MPVGLView` 是 `NSOpenGLView`，它在 AppKit 的命中测试里赢过 SwiftUI 浮层

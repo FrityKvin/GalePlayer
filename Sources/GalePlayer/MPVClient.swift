@@ -95,7 +95,7 @@ final class MPVClient: @unchecked Sendable {
         // auto-copy-safe：仍走 VideoToolbox 硬解，但优先 copy-back 变体。
         // 纯零拷贝的 videotoolbox 会让 mpv 的截图路径失败
         // （"Input image format videotoolbox not supported by libswscale"），
-        // 而本应用有截图功能（⇧F5，对应暴风原版行为），所以选择可回读的硬解。
+        // 而本应用有截图功能（⇧F5），所以选择可回读的硬解。
         // 硬件解码：优先零拷贝，失败自动降级到拷贝模式。
         //
         // mpv 的 hwdec 支持逗号分隔的降级链（实测 0.41 生效：
@@ -105,7 +105,7 @@ final class MPVClient: @unchecked Sendable {
         let hwdec = ProcessInfo.processInfo.environment["GALE_HWDEC"]
             ?? "videotoolbox,auto-copy-safe"
         setOption("hwdec", hwdec)
-        setOption("sub-auto", "fuzzy")           // 自动加载同名字幕，对应暴风 autoLoadSubtitle
+        setOption("sub-auto", "fuzzy")           // 自动加载同名字幕
         setOption("sub-file-paths", "sub,subs,subtitles:.")
         setOption("screenshot-format", "png")
         setOption("screenshot-tag-colorspace", "yes")

@@ -195,10 +195,7 @@ struct GaleApp: App {
 
 /// 菜单与快捷键。
 ///
-/// 键位来自两处证据：
-///   - 暴风影音 `Resources/hotkey.plist`（播放相关，保留原生习惯）
-///   - DMM Player「チャプター」快捷键（关键帧相关）
-/// 二者无冲突：媒体切换沿用暴风的 ⌘↑/⌘↓，关键帧跳转用 DMM 的 ⌘N/⌘P。
+/// 键位设计沿用经典播放器习惯：媒体切换 ⌘↑/⌘↓，关键帧跳转 ⌘N/⌘P。
 ///
 /// 所有快捷键都从 `HotKeyStore` 读取，因此设置页改绑后菜单立即生效。
 struct GaleCommands: Commands {
@@ -298,7 +295,7 @@ struct GaleCommands: Commands {
                 .applying(hotKeys.combo(for: .alwaysOnTop))
         }
 
-        // 关键帧（DMM Player 功能移植）
+        // 关键帧
         CommandMenu("关键帧") {
             Button("添加关键帧") { core.perform(.chapterAdd) }
                 .applying(hotKeys.combo(for: .chapterAdd))

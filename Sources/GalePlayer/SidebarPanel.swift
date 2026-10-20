@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import GaleCore
 
 /// 右侧面板：播放列表 / 关键帧两个标签页。
-/// 对应 DMM Player 的「プレイリスト・チャプター」面板与暴风影音的播放列表侧栏。
+/// 播放列表侧栏（播放列表 + 关键帧两个标签）。
 struct SidebarPanel: View {
     @Binding var tab: SidebarTab
     @Binding var visible: Bool
@@ -137,7 +137,7 @@ struct PlaylistPanel: View {
         }
     }
 
-    /// 正在播放的媒体属于哪个文件夹 → 自动展开它（对应暴风影音的行为）。
+    /// 正在播放的媒体属于哪个文件夹 → 自动展开它。
     ///
     /// 没有这条，拖入文件夹后 toggle 默认折叠，**高亮画在看不见的子项上**，
     /// 表现就是「播放列表不高亮正在播放的文件」。

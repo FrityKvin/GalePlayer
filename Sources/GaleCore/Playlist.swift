@@ -2,7 +2,7 @@ import Foundation
 
 /// 播放列表节点。
 ///
-/// 结构对照暴风影音 1.1.6 的播放列表模型（`BFPlayListTree` / `folder` / `mediaItem`）：
+/// 播放列表树（folder / mediaItem 两种节点）：
 /// 树形，文件夹节点可展开，媒体项有序；支持图文两种呈现模式。
 public struct PlaylistNode: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
@@ -69,7 +69,7 @@ public struct PlaylistNode: Codable, Identifiable, Equatable, Sendable {
 
 /// 播放列表管理。
 ///
-/// 复刻自暴风影音被点名的几个行为（见逆向报告 1.4 节）：
+/// 列表行为细节：
 /// 文件夹批量导入 + 自然序排列（原版曾因乱序被用户投诉）、退出保存、
 /// 打开时清空、最近播放列表、图文/文字双视图偏好。
 public final class Playlist: @unchecked Sendable {

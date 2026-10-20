@@ -17,7 +17,7 @@ final class AppSettings: ObservableObject {
     @Published var restartOnEnd: Bool = false
     @Published var screenshotDirectory: URL
 
-    /// 快进/快退秒数，可在设置里调 1–60 秒（对应暴风影音的快进时长设置）。
+    /// 快进/快退秒数，可在设置里调 1–60 秒。
     @Published private(set) var seekStepSeconds: Int = 10
 
     /// 可选范围（UI 与写入都以此为准，避免落盘脏数据）。

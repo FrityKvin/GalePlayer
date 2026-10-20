@@ -3,7 +3,7 @@ import XCTest
 
 /// 关键帧算法测试。
 ///
-/// 用例逐条对应 DMM Player 反编译出的原实现行为（见逆向报告 2.3 节）：
+/// 用例覆盖关键帧算法的边界行为：
 /// addChapter / deleteChapter / skipNextChapter / skipPreviousChapter / repeat_chapter。
 final class ChapterBookTests: XCTestCase {
     private func book(_ times: [Int]) -> ChapterBook {

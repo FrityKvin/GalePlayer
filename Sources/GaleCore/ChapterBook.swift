@@ -2,8 +2,7 @@ import Foundation
 
 /// 单个视频的关键帧集合。
 ///
-/// 数据模型与算法移植自 DMM Player v2 的「チャプター（Chapter）」体系，
-/// 原实现：`{ key: <file_id>, title: <videoTitle>, time: [秒, 升序] }`
+/// 关键帧集合模型。
 public struct ChapterBook: Codable, Equatable, Sendable {
     /// 视频的稳定标识（本地文件 → 路径+大小+修改时间的摘要）
     public var mediaKey: String

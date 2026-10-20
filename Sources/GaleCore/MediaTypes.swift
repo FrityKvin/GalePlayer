@@ -2,7 +2,7 @@ import Foundation
 
 /// 支持的媒体类型。
 ///
-/// 基础清单取自暴风影音 1.1.6 的 `Info.plist`（82 个 `CFBundleTypeExtensions`，
+/// 基础清单覆盖常见视频/音频格式（82 个扩展名，
 /// 即原版能「万能播放」的全部关联格式 —— 证据：`plutil -p` 提取），
 /// 去掉已决定不做的 `bhd`、并补齐现代格式（`avif`/`webm` 已在列，追加
 /// 字幕 `ass`/`vtt` 与音频 `mka`/`opus`）。

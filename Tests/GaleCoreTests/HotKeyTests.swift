@@ -6,7 +6,7 @@ final class HotKeyTests: XCTestCase {
 
     // MARK: - 默认键位（须与两处证据一致）
 
-    func testPlaybackDefaultsMatchBaofengHotkeyPlist() {
+    func testPlaybackDefaults() {
         XCTAssertEqual(HotKeyAction.playPause.defaultCombo.displayString, "空格")
         XCTAssertEqual(HotKeyAction.stop.defaultCombo.displayString, "⌘S")
         XCTAssertEqual(HotKeyAction.seekBackward.defaultCombo.displayString, "←")
@@ -23,7 +23,7 @@ final class HotKeyTests: XCTestCase {
         XCTAssertEqual(HotKeyAction.openFolder.defaultCombo.displayString, "⌘F")
     }
 
-    func testChapterDefaultsMatchDMMPlayer() {
+    func testChapterDefaults() {
         XCTAssertEqual(HotKeyAction.chapterAdd.defaultCombo.displayString, "⌘A")
         XCTAssertEqual(HotKeyAction.chapterDelete.defaultCombo.displayString, "⌘D")
         XCTAssertEqual(HotKeyAction.chapterNext.defaultCombo.displayString, "⌘N")

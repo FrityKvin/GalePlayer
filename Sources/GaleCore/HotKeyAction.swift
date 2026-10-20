@@ -3,9 +3,7 @@ import Foundation
 /// 可绑定的操作。
 ///
 /// 默认按键来自两处证据：
-///   - 暴风影音 `Resources/hotkey.plist`（播放相关，保留原生习惯）
-///   - DMM Player「チャプター」快捷键（关键帧相关）
-/// 二者无冲突：媒体切换沿用暴风的 ⌘↑/⌘↓，关键帧跳转用 DMM 的 ⌘N/⌘P。
+/// 媒体切换 ⌘↑/⌘↓，关键帧跳转 ⌘N/⌘P。
 public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
     // 播放
     case playPause
@@ -103,7 +101,7 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
         case .volumeUp: KeyCombo(key: KeyCombo.SpecialKey.up)
         case .volumeDown: KeyCombo(key: KeyCombo.SpecialKey.down)
         case .mute: KeyCombo(key: "m", command: true)
-        // ⇧F5：与暴风影音原版截图快捷键一致
+        // ⇧F5：截图
         case .screenshot: KeyCombo(key: KeyCombo.SpecialKey.function(5), shift: true)
         case .fullScreen: KeyCombo(key: KeyCombo.SpecialKey.ret)
         case .alwaysOnTop: KeyCombo(key: "t", command: true)

@@ -1,9 +1,7 @@
 import SwiftUI
 import GaleCore
 
-/// 设置面板。三个标签页对应暴风影音原版的三个设置页
-/// （`BFGeneralPreferencesViewController` / `BFHotKeyPreferencesViewController` /
-/// `BFPlayListPreferencesViewController`）。
+/// 设置面板：通用 / 快捷键 / 播放列表 三个标签页。
 struct SettingsView: View {
     var body: some View {
         TabView {
@@ -118,7 +116,7 @@ private struct HotKeySettings: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("快捷键")
                     .font(.headline)
-                Text("点方框后按下新的组合键即可改绑，按 Esc 取消。播放键位默认沿用暴风影音原版，关键帧为 DMM Player 移植。")
+                Text("点方框后按下新的组合键即可改绑，按 Esc 取消。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
