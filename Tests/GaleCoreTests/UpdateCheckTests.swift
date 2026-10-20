@@ -104,6 +104,22 @@ final class UpdateCheckTests: XCTestCase {
         XCTAssertEqual(UpdateCheck.decide(release: r, currentVersion: "0.1.0"), .malformed)
     }
 
+    func testNotesTruncatedToTwelveLines() throws {
+        // 真实 release 说明可能几百行（mpv 的就有 100+ 行），UI 里只留摘要。
+        // 锁住「超过 12 行截断」这个行为，防止将来有人把全文塞进弹窗。
+        let longBody = (1...50).map { "第\($0)行" }.joined(separator: "\n")
+        let r = release(tag: "v9.9.9",
+                        assets: [("a.dmg", "https://x")],
+                        body: longBody)
+        guard case .available(_, let notes, _) =
+            UpdateCheck.decide(release: r, currentVersion: "0.1.0") else {
+            return XCTFail("应为 available")
+        }
+        XCTAssertEqual(notes?.split(separator: "\n").count, 12)
+        XCTAssertEqual(notes?.split(separator: "\n").first, "第1行")
+        XCTAssertEqual(notes?.split(separator: "\n").last, "第12行")
+    }
+
     func testDecodesGitHubAPIResponse() throws {
         // 与真实 GitHub API 字段名对齐（tag_name / html_url / browser_download_url）
         let json = """
