@@ -1,0 +1,6 @@
+# 构建产物
+.build/
+build/
+dist/
+.DS_Store
+*.swiftbuild/
