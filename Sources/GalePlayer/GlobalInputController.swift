@@ -53,6 +53,10 @@ final class GlobalInputController {
 
         switch event.type {
         case .scrollWheel:
+            // 悬停在可滚动区域（播放列表 = SwiftUI List = NSScrollView）上时，
+            // 滚轮要还给列表去滚动，不能拿去调音量 —— 否则滚动播放列表的同时
+            // 音量也跟着变（用户实测反馈）。
+            if isOverScrollableView(event, in: window) { return event }
             return handleScroll(event) ? nil : event
         case .otherMouseDown:
             middleDragStart(with: event)
@@ -66,6 +70,32 @@ final class GlobalInputController {
         default:
             return nil
         }
+    }
+
+    /// 光标下方的视图（或其祖先）是不是可滚动视图。
+    ///
+    /// 用命中测试向上找 `NSScrollView`，而不是按坐标猜「侧栏在哪」：
+    /// 侧栏的可见性、宽度、全屏浮层都会变，按坐标判断会漏；
+    /// 按视图类型判断则对现在和将来的任何可滚动区域都成立。
+    private func isOverScrollableView(_ event: NSEvent, in window: NSWindow) -> Bool {
+        isScrollableRegion(atWindowPoint: event.locationInWindow, in: window)
+    }
+
+    /// 测试钩子 / 判定单一来源：给定窗口坐标点，该点是否落在可滚动区域上。
+    ///
+    /// 抽出来单独成方法，是因为 `isOverScrollableView` 依赖 `NSEvent.locationInWindow`，
+    /// 而滚轮事件在无头自检里无法合成（`otherEvent` 不接受 scrollWheel 类型、
+    /// `CGEvent` 造出来的没有 window 关联），所以自检直接测这个判定函数。
+    @MainActor
+    func isScrollableRegion(atWindowPoint point: NSPoint, in window: NSWindow) -> Bool {
+        guard let contentView = window.contentView else { return false }
+        let converted = contentView.convert(point, from: nil)
+        var view: NSView? = contentView.hitTest(converted)
+        while let current = view {
+            if current is NSScrollView { return true }
+            view = current.superview
+        }
+        return false
     }
 
     private func handleScroll(_ event: NSEvent) -> Bool {

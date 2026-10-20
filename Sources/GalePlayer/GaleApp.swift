@@ -93,6 +93,11 @@ struct GaleApp: App {
                         }
                     }
 
+                    // 滚轮冲突自检：播放列表上滚轮不应触发音量，视频区应触发
+                    if ScrollConflictTest.isRequested() {
+                        ScrollConflictTest.start(core: core)
+                    }
+
                     // 按键通路自检：合成 ←/→/空格，验证快捷键真的生效
                     if InputTest.isRequested() {
                         Task { @MainActor in

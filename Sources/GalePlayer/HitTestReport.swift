@@ -73,7 +73,11 @@ enum HitTestReport {
                 var result: [String] = []
                 var view: NSView? = content.hitTest(inWindow)
                 while let current = view {
-                    result.append(String(describing: type(of: current)))
+                    var label = String(describing: type(of: current))
+                    if current is NSScrollView { label += "  ←NSScrollView" }
+                    if current is NSClipView { label += "  ←NSClipView" }
+                    if current is NSTableView { label += "  ←NSTableView" }
+                    result.append(label)
                     view = current.superview
                 }
                 return result
@@ -81,7 +85,7 @@ enum HitTestReport {
             let head = chain.first ?? "(nil —— 该点没有任何视图命中)"
             lines.append("  \(name)：\(head)")
             if chain.count > 1 {
-                lines.append("      链：\(chain.prefix(5).joined(separator: " → "))")
+                lines.append("      链：\(chain.prefix(20).joined(separator: " → "))")
             }
             lines.append("")
         }
