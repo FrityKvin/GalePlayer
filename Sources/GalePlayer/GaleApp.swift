@@ -225,6 +225,13 @@ struct GaleCommands: Commands {
 
         // 文件
         CommandGroup(replacing: .newItem) {
+            Button("新建窗口") {
+                if !MultiInstance.spawn() {
+                    NSSound.beep()
+                }
+            }
+            .applying(hotKeys.combo(for: .newWindow))
+            Divider()
             Button("打开文件…") { openFiles() }
                 .applying(hotKeys.combo(for: .openFile))
             Button("打开文件夹…") { openFolder() }

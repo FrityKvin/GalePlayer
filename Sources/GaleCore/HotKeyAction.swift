@@ -32,6 +32,7 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
     // 文件
     case openFile
     case openFolder
+    case newWindow
 
     // 关键帧
     case chapterAdd
@@ -54,7 +55,7 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
         case .volumeUp, .volumeDown, .mute, .screenshot, .fullScreen, .alwaysOnTop,
              .rotateClockwise, .rotateCounterclockwise, .mirror:
             .volume
-        case .openFile, .openFolder:
+        case .openFile, .openFolder, .newWindow:
             .file
         case .chapterAdd, .chapterDelete, .chapterPrevious, .chapterNext:
             .chapter
@@ -85,6 +86,7 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
         case .mirror: "镜像画面"
         case .openFile: "打开文件"
         case .openFolder: "打开文件夹"
+        case .newWindow: "新建窗口"
         case .chapterAdd: "添加关键帧"
         case .chapterDelete: "删除关键帧"
         case .chapterPrevious: "上一个关键帧"
@@ -121,6 +123,7 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
         case .mirror: KeyCombo(key: "r", command: true)
         case .openFile: KeyCombo(key: "o", command: true)
         case .openFolder: KeyCombo(key: "f", command: true)
+        case .newWindow: KeyCombo(key: "n", command: true, shift: true)
         case .chapterAdd: KeyCombo(key: "a", command: true)
         case .chapterDelete: KeyCombo(key: "d", command: true)
         case .chapterPrevious: KeyCombo(key: "p", command: true)

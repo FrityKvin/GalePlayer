@@ -563,6 +563,10 @@ final class PlayerCore: ObservableObject {
         case .chapterPrevious: goToPreviousChapter()
         case .chapterNext: goToNextChapter()
         case .openFile, .openFolder: break   // 由菜单的文件面板处理
+        case .newWindow:
+            if !MultiInstance.spawn() {
+                statusMessage = "最多同时打开 \(MultiInstance.maxInstances) 个窗口"
+            }
         }
     }
 
