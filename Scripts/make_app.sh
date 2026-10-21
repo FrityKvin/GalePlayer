@@ -32,6 +32,16 @@ cp "${BIN_DIR}/GalePlayer" "${APP}/Contents/MacOS/GalePlayer"
 cp "${ROOT}/Scripts/Info.plist" "${APP}/Contents/Info.plist"
 printf 'APPL????' > "${APP}/Contents/PkgInfo"
 
+echo "==> adding icon"
+# 图标必须在签名之前放进 Resources 并写进 Info.plist，否则本地装的应用是通用图标。
+# （之前只有 make_dist.sh 做这步，导致 make_app.sh 装出来的应用没图标。）
+if [ -f "${ROOT}/Assets/GalePlayer.icns" ]; then
+    cp "${ROOT}/Assets/GalePlayer.icns" "${APP}/Contents/Resources/GalePlayer.icns"
+    if ! /usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "${APP}/Contents/Info.plist" >/dev/null 2>&1; then
+        /usr/libexec/PlistBuddy -c 'Add :CFBundleIconFile string GalePlayer' "${APP}/Contents/Info.plist"
+    fi
+fi
+
 echo "==> ad-hoc signing"
 codesign --force --sign - "${APP}/Contents/MacOS/GalePlayer" >/dev/null 2>&1
 codesign --force --sign - "${APP}" >/dev/null 2>&1
