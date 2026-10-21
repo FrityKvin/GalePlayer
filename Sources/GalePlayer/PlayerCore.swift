@@ -500,6 +500,16 @@ final class PlayerCore: ObservableObject {
         client?.getString("vf")
     }
 
+    /// 自检用：把当前帧截图到指定路径（验证滤镜是否真实作用于画面）。
+    func screenshotForTesting(to path: String) {
+        client?.screenshot(to: path)
+    }
+
+    /// 自检用：读回 mpv 当前实际生效的硬解模式（videotoolbox=零拷贝 / -copy=拷贝）。
+    func hwdecForTesting() -> String? {
+        client?.getString("hwdec-current")
+    }
+
     func toggleFullScreen() {
         // 必须用**播放器窗口**，不能直接用 keyWindow：
         // 双击画面时若弹出过菜单/面板，keyWindow 可能已经变成别的窗口

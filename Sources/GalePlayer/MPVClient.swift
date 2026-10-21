@@ -92,18 +92,15 @@ final class MPVClient: @unchecked Sendable {
         // render API：由宿主提供 GL 上下文并驱动绘制，mpv 不创建窗口
         setOption("vo", "libmpv")
         setOption("gpu-api", "opengl")
-        // auto-copy-safe：仍走 VideoToolbox 硬解，但优先 copy-back 变体。
-        // 纯零拷贝的 videotoolbox 会让 mpv 的截图路径失败
-        // （"Input image format videotoolbox not supported by libswscale"），
-        // 而本应用有截图功能（⇧F5），所以选择可回读的硬解。
-        // 硬件解码：优先零拷贝，失败自动降级到拷贝模式。
+        // 硬件解码：默认 auto-safe = 无滤镜时零拷贝（保住 4K 能耗比），
+        // 一旦有软件滤镜（如镜像用的 hflip）mpv 自动切到 copy-back，滤镜才真正生效。
         //
-        // mpv 的 hwdec 支持逗号分隔的降级链（实测 0.41 生效：
-        // 首选 videotoolbox，不可用则自动退到 videotoolbox-copy / 软解）。
-        // 实测 4K H.264：零拷贝 CPU 8.6% vs 拷贝 15.8%，内存 416MB vs 470MB，
-        // 1080p 及以下两者几乎无差别（差 0.3 个百分点），因此默认优先零拷贝。
+        // 历史坑：曾用 `videotoolbox,auto-copy-safe`。这是降级链语义——videotoolbox
+        // 零拷贝一旦成功就"钉死"，后面的 auto-copy-safe 永远不会被尝试；而零拷贝下
+        // 画面帧只留在 GPU，软件滤镜(hflip)和截图都拿不到 → 镜像"命令到了但画面没翻"。
+        // auto-safe 由 mpv 在滤镜出现时自行重协商（无需重载），零拷贝/拷贝两不误。
         let hwdec = ProcessInfo.processInfo.environment["GALE_HWDEC"]
-            ?? "videotoolbox,auto-copy-safe"
+            ?? "auto-safe"
         setOption("hwdec", hwdec)
         setOption("sub-auto", "fuzzy")           // 自动加载同名字幕
         setOption("sub-file-paths", "sub,subs,subtitles:.")

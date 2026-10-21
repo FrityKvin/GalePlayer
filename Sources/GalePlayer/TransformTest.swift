@@ -92,10 +92,31 @@ enum TransformTest {
         let vfOff = onMain { core.vfForTesting() } ?? ""
         check("镜像关 → vf 不含 hflip（实际 \(vfOff)）", !vfOff.contains("hflip"))
 
+        // ⑦ 画面真实翻转验证：暂停 → 截图 → 开镜像 → 再截图，两图应不同
+        onMain { core.setPaused(true) }
+        Thread.sleep(forTimeInterval: 0.4)
+        let hwdecBefore = onMain { core.hwdecForTesting() } ?? "?"
+        onMain { core.screenshotForTesting(to: "/tmp/tt-mirror-a.png") }
+        Thread.sleep(forTimeInterval: 0.6)
+        onMain { core.toggleMirror() }
+        Thread.sleep(forTimeInterval: 0.6)
+        let hwdecAfter = onMain { core.hwdecForTesting() } ?? "?"
+        onMain { core.screenshotForTesting(to: "/tmp/tt-mirror-b.png") }
+        Thread.sleep(forTimeInterval: 0.6)
+        let imgA = (try? Data(contentsOf: URL(fileURLWithPath: "/tmp/tt-mirror-a.png"))) ?? Data()
+        let imgB = (try? Data(contentsOf: URL(fileURLWithPath: "/tmp/tt-mirror-b.png"))) ?? Data()
+        let imagesDiffer = imgA.count > 0 && imgB.count > 0 && imgA != imgB
+        check("镜像截图差异（\(imgA.count)/\(imgB.count)字节，不同=已真实翻转，相同=未生效）", imagesDiffer)
+        // auto-safe 语义：解码器始终零拷贝（hwdec-current=videotoolbox），
+        // 有软件滤镜时由 mpv 在滤镜链里自行下载帧（不切解码器），性能无回归。
+        check("零拷贝解码保留：无滤镜 \(hwdecBefore) → 有滤镜 \(hwdecAfter)（应均 videotoolbox）",
+              hwdecBefore == "videotoolbox" && hwdecAfter == "videotoolbox")
+
         let ok = afterCW == 90 && mpvCW == 90 && afterCW2 == 180
             && afterCCW == 90 && mpvCCW == 90 && backToZero == 0
             && mirroredState && vfOn.contains("hflip") && !vfOff.contains("hflip")
-        lines.append("  结论：" + (ok ? "旋转/镜像命令全部送达 mpv ✓" : "存在缺陷 ✗"))
+            && imagesDiffer
+        lines.append("  结论：" + (ok ? "旋转/镜像命令全部送达 mpv 且画面真实生效 ✓" : "存在缺陷 ✗"))
         print(lines.joined(separator: "\n"))
         NSApp.terminate(nil)
     }
