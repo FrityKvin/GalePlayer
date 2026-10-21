@@ -33,4 +33,18 @@ enum MultiInstance {
         }
         return true
     }
+
+    /// 用**新实例**打开指定文件（播放列表右键「在新窗口打开」）。
+    /// 新实例收到 open 事件后会把它加载进自己的窗口。
+    @discardableResult
+    static func openInNewInstance(_ url: URL) -> Bool {
+        guard !isAtLimit else { return false }
+        let appURL = Bundle.main.bundleURL
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: config) { _, error in
+            if let error { NSLog("Gale: 新窗口打开文件失败 \(error)") }
+        }
+        return true
+    }
 }

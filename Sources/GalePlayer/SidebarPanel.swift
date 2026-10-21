@@ -130,6 +130,15 @@ struct PlaylistPanel: View {
                 let starred = ids.first
                     .flatMap { find($0, in: settings.playlistItems)?.isFavorite } ?? false
                 Button(starred ? "取消星标" : "加星标") { settings.setFavorite(ids, to: !starred) }
+                if let first = ids.first,
+                   let node = find(first, in: settings.playlistItems),
+                   !node.resolvedIsFolder {
+                    Button("在新窗口打开") {
+                        if !MultiInstance.openInNewInstance(node.url) {
+                            NSSound.beep()
+                        }
+                    }
+                }
                 Divider()
                 Button("移除") { settings.remove(ids: ids) }
                 Button("在访达中显示") {
