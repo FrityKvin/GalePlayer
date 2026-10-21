@@ -76,8 +76,10 @@ final class MPVClient: @unchecked Sendable {
         guard let handle = mpv_create() else { return nil }
         self.handle = handle
 
-        setOption("terminal", verbose ? "yes" : "no")
-        if verbose {
+        // 排障：GALE_MPV_TRACE=1 强制打开 mpv 详细日志（写到 /tmp/gale-mpv.log）。
+        let trace = verbose || ProcessInfo.processInfo.environment["GALE_MPV_TRACE"] == "1"
+        setOption("terminal", trace ? "yes" : "no")
+        if trace {
             setOption("msg-level", "all=v")
             setOption("log-file", "/tmp/gale-mpv.log")
         }
@@ -375,11 +377,19 @@ final class MPVClient: @unchecked Sendable {
     }
 
     /// 镜像（水平翻转）。用 `vf` 的 hflip 滤镜：加/删一次，保持状态单一。
+    ///
+    /// hflip 是 lavfi（libavfilter）滤镜，吃不了 videotoolbox 硬解帧（会报
+    /// "Impossible to convert" 被 mpv 静默禁用）。因此在它之前加一个原生 `format`
+    /// 滤镜强制 yuv420p 软件帧 —— mpv 的 autoconvert 会自动插入 hwdownload，
+    /// 之后 hwupload 回 GPU，镜像才能真正作用于渲染路径。
+    ///
+    /// 用 `vf set` 整体设/清滤镜链，而不是 `vf add/remove`：实测 `vf remove format`
+    /// 删不掉 format 滤镜（label 不匹配），关镜像后 hwdownload 仍在跑、性能不恢复。
     func setMirror(_ on: Bool) {
         if on {
-            command(["vf", "add", "hflip"])
+            command(["vf", "set", "format=fmt=yuv420p,hflip"])
         } else {
-            command(["vf", "remove", "hflip"])
+            command(["vf", "set", ""])
         }
     }
 

@@ -90,7 +90,8 @@ enum TransformTest {
         onMain { core.toggleMirror() }
         Thread.sleep(forTimeInterval: 0.4)
         let vfOff = onMain { core.vfForTesting() } ?? ""
-        check("镜像关 → vf 不含 hflip（实际 \(vfOff)）", !vfOff.contains("hflip"))
+        let vfCleared = !vfOff.contains("hflip") && !vfOff.contains("format")
+        check("镜像关 → 滤镜链已清空（实际 \(vfOff.isEmpty ? "空" : vfOff)）", vfCleared)
 
         // ⑦ 画面真实翻转验证：暂停 → 截图 → 开镜像 → 再截图，两图应不同
         onMain { core.setPaused(true) }
