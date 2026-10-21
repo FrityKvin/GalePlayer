@@ -166,6 +166,14 @@ struct GaleApp: App {
                         }
                     }
 
+                    // 画面变换自检：旋转/镜像命令是否真的送达 mpv
+                    if TransformTest.isRequested() {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(5))
+                            TransformTest.start(core: core)
+                        }
+                    }
+
                     // 播放列表导出自检：走真实导出路径，校验关键帧是否写进文件
                     if PlaylistExportTest.isRequested() {
                         Task { @MainActor in
@@ -297,6 +305,15 @@ struct GaleCommands: Commands {
                 .applying(hotKeys.combo(for: .fullScreen))
             Button("窗口置顶") { core.perform(.alwaysOnTop) }
                 .applying(hotKeys.combo(for: .alwaysOnTop))
+
+            Divider()
+
+            Button("顺时针旋转 90°") { core.perform(.rotateClockwise) }
+                .applying(hotKeys.combo(for: .rotateClockwise))
+            Button("逆时针旋转 90°") { core.perform(.rotateCounterclockwise) }
+                .applying(hotKeys.combo(for: .rotateCounterclockwise))
+            Button("镜像画面") { core.perform(.mirror) }
+                .applying(hotKeys.combo(for: .mirror))
         }
 
         // 关键帧

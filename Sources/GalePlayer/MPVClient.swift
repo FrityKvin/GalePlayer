@@ -366,6 +366,26 @@ final class MPVClient: @unchecked Sendable {
         setDouble("speed", min(max(0.1, value), 8))
     }
 
+    /// 旋转画面。`video-rotate` 正值 = 顺时针（mpv 官方 menu.conf：
+    /// 顺时针 cycle 90 180 270 0，逆时针 cycle 270 180 90 0）。
+    ///
+    /// 用字符串写入而不是 `setDouble`：`video-rotate` 是**整型**选项，
+    /// 以 MPV_FORMAT_DOUBLE 写会被 mpv 静默拒绝（实测读回仍 0），
+    /// 而 `mpv_set_property_string` 会按选项类型解析，任何类型都稳。
+    func setVideoRotate(_ degrees: Int) {
+        let normalized = ((degrees % 360) + 360) % 360
+        setString("video-rotate", String(normalized))
+    }
+
+    /// 镜像（水平翻转）。用 `vf` 的 hflip 滤镜：加/删一次，保持状态单一。
+    func setMirror(_ on: Bool) {
+        if on {
+            command(["vf", "add", "hflip"])
+        } else {
+            command(["vf", "remove", "hflip"])
+        }
+    }
+
     func setAudioTrack(_ id: Int64) {
         var v = id
         guard let handle else { return }

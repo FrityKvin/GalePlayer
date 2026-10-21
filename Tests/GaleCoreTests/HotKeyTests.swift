@@ -30,6 +30,13 @@ final class HotKeyTests: XCTestCase {
         XCTAssertEqual(HotKeyAction.chapterPrevious.defaultCombo.displayString, "⌘P")
     }
 
+    func testTransformDefaults() {
+        XCTAssertEqual(HotKeyAction.rotateCounterclockwise.defaultCombo.displayString, "⌘E")
+        XCTAssertEqual(HotKeyAction.mirror.defaultCombo.displayString, "⌘R")
+        // 顺时针原本要 ⌘Q，但那是系统退出；⌘⇧E 是导出。故落 ⌥⌘E。
+        XCTAssertEqual(HotKeyAction.rotateClockwise.defaultCombo.displayString, "⌥⌘E")
+    }
+
     /// 默认键位之间不能互相冲突，否则菜单里会有两个相同快捷键。
     func testDefaultCombosAreUnique() {
         var seen: [KeyCombo: HotKeyAction] = [:]

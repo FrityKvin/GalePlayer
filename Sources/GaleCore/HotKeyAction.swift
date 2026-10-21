@@ -25,6 +25,9 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
     case screenshot
     case fullScreen
     case alwaysOnTop
+    case rotateClockwise
+    case rotateCounterclockwise
+    case mirror
 
     // 文件
     case openFile
@@ -48,7 +51,8 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
         case .playPause, .stop, .seekBackward, .seekForward, .seekBackwardLong,
              .seekForwardLong, .previousMedia, .nextMedia, .speedUp, .speedDown, .speedReset:
             .playback
-        case .volumeUp, .volumeDown, .mute, .screenshot, .fullScreen, .alwaysOnTop:
+        case .volumeUp, .volumeDown, .mute, .screenshot, .fullScreen, .alwaysOnTop,
+             .rotateClockwise, .rotateCounterclockwise, .mirror:
             .volume
         case .openFile, .openFolder:
             .file
@@ -76,6 +80,9 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
         case .screenshot: "截图"
         case .fullScreen: "全屏 / 退出全屏"
         case .alwaysOnTop: "窗口置顶"
+        case .rotateClockwise: "顺时针旋转 90°"
+        case .rotateCounterclockwise: "逆时针旋转 90°"
+        case .mirror: "镜像画面"
         case .openFile: "打开文件"
         case .openFolder: "打开文件夹"
         case .chapterAdd: "添加关键帧"
@@ -105,6 +112,13 @@ public enum HotKeyAction: String, CaseIterable, Codable, Sendable {
         case .screenshot: KeyCombo(key: KeyCombo.SpecialKey.function(5), shift: true)
         case .fullScreen: KeyCombo(key: KeyCombo.SpecialKey.ret)
         case .alwaysOnTop: KeyCombo(key: "t", command: true)
+        // 旋转 / 镜像：
+        //   ⌘E = 逆时针、⌘R = 镜像（Kevin 指定）。
+        //   顺时针 Kevin 原本要 ⌘Q，但 ⌘Q 是系统「退出」、⌘⇧E 是「导出播放列表」，
+        //   都已被占用，故默认落在 ⌘⌥E（与 ⌘E 成对，Option 表示反向）。
+        case .rotateClockwise: KeyCombo(key: "e", command: true, option: true)
+        case .rotateCounterclockwise: KeyCombo(key: "e", command: true)
+        case .mirror: KeyCombo(key: "r", command: true)
         case .openFile: KeyCombo(key: "o", command: true)
         case .openFolder: KeyCombo(key: "f", command: true)
         case .chapterAdd: KeyCombo(key: "a", command: true)

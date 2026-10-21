@@ -52,6 +52,11 @@ final class PlayerCore: ObservableObject {
     /// 全屏下播放列表浮层的展开状态（普通窗口用右侧面板，无需此状态）。
     @Published var isPlaylistFloating = false
 
+    /// 画面旋转（0/90/180/270，正值=顺时针）。
+    @Published private(set) var videoRotation = 0
+    /// 画面是否镜像（水平翻转）。
+    @Published private(set) var isMirrored = false
+
     /// 音量/进度被滚轮或中键改变时的短暂提示（例如「音量 65%」）。
     @Published var toast: String?
 
@@ -456,6 +461,45 @@ final class PlayerCore: ObservableObject {
         statusMessage = "截图已保存：\(url.lastPathComponent)"
     }
 
+    func rotateClockwise() {
+        videoRotation = (videoRotation + 90) % 360
+        client?.setVideoRotate(videoRotation)
+        toastRotation()
+    }
+
+    func rotateCounterclockwise() {
+        videoRotation = (videoRotation + 270) % 360
+        client?.setVideoRotate(videoRotation)
+        toastRotation()
+    }
+
+    func toggleMirror() {
+        isMirrored.toggle()
+        client?.setMirror(isMirrored)
+        showToast(isMirrored ? "已镜像" : "已取消镜像")
+    }
+
+    private func toastRotation() {
+        switch videoRotation {
+        case 90: showToast("旋转 90°（顺时针）")
+        case 180: showToast("旋转 180°")
+        case 270: showToast("旋转 270°（逆时针 90°）")
+        default: showToast("画面已转正")
+        }
+    }
+
+    // MARK: - 画面变换自检钩子
+
+    /// 自检用：读回 mpv 当前的 `video-rotate`（命令是否送达）。
+    func videoRotateForTesting() -> Double? {
+        client?.getDouble("video-rotate")
+    }
+
+    /// 自检用：读回 mpv 当前的 `vf` 滤镜链。
+    func vfForTesting() -> String? {
+        client?.getString("vf")
+    }
+
     func toggleFullScreen() {
         // 必须用**播放器窗口**，不能直接用 keyWindow：
         // 双击画面时若弹出过菜单/面板，keyWindow 可能已经变成别的窗口
@@ -501,6 +545,9 @@ final class PlayerCore: ObservableObject {
         case .screenshot: screenshot()
         case .fullScreen: toggleFullScreen()
         case .alwaysOnTop: toggleAlwaysOnTop()
+        case .rotateClockwise: rotateClockwise()
+        case .rotateCounterclockwise: rotateCounterclockwise()
+        case .mirror: toggleMirror()
         case .chapterAdd: addChapter()
         case .chapterDelete: deleteChapter()
         case .chapterPrevious: goToPreviousChapter()
