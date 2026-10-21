@@ -4,3 +4,8 @@ build/
 dist/
 .DS_Store
 *.swiftbuild/
+
+# 调试用测试媒体：体积大、与代码无关，不提交。
+# 调试时把测试视频/截图放 TestMedia/，发布完成后问 Kevin 是否清理。
+TestMedia/*
+!TestMedia/README.md
