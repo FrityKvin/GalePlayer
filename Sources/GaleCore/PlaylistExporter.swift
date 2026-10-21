@@ -52,6 +52,27 @@ public enum PlaylistExporter {
         }
     }
 
+    /// 导出并同时返回计数 —— UI 要显示「共 N 项 / M 个关键帧」，
+    /// 用这个就不必再额外调一次 `statistics`（那是又一遍 MediaKey）。
+    public static func exportWithCounts(
+        items: [PlaylistNode],
+        books: [ChapterBook],
+        format: PlaylistExportFormat,
+        exportedAt: Date = Date()
+    ) -> (data: Data, counts: Counts) {
+        switch format {
+        case .json:
+            if let result = try? jsonWithCounts(items: items, books: books, exportedAt: exportedAt) {
+                return result
+            }
+            return (Data(), Counts())
+        case .m3u8:
+            let (m, w, c, f) = statistics(items: items, books: books)
+            let text = m3u8(items: items, books: books, exportedAt: exportedAt)
+            return (Data(text.utf8), Counts(media: m, withChapters: w, chapters: c, favorites: f))
+        }
+    }
+
     /// 统计：媒体项数、含关键帧的项数、关键帧总数、星标项数。
     public static func statistics(items: [PlaylistNode], books: [ChapterBook]) -> (
         media: Int, withChapters: Int, chapters: Int, favorites: Int
@@ -61,6 +82,9 @@ public enum PlaylistExporter {
         for node in items.flatMap(\.flattenedMedia) {
             media += 1
             if node.isFavorite { favorites += 1 }
+            // 没有关键帧时**完全不碰** MediaKey：它是 stat + SHA256，每项约 50µs，
+            // 2000 项就是 100ms —— 而结果注定查不到东西。
+            guard !lookup.isEmpty else { continue }
             guard let book = lookup[MediaKey.make(for: node.url)], !book.isEmpty else { continue }
             withChapters += 1
             chapters += book.count
@@ -142,39 +166,78 @@ public enum PlaylistExporter {
         let children: [ExportedNode]?
     }
 
+    /// 导出统计（避免调用方为了显示计数再跑一遍 MediaKey）。
+    public struct Counts: Sendable, Equatable {
+        public var media = 0
+        public var withChapters = 0
+        public var chapters = 0
+        public var favorites = 0
+        public init(media: Int = 0, withChapters: Int = 0, chapters: Int = 0, favorites: Int = 0) {
+            self.media = media
+            self.withChapters = withChapters
+            self.chapters = chapters
+            self.favorites = favorites
+        }
+    }
+
     public static func json(items: [PlaylistNode], books: [ChapterBook], exportedAt: Date = Date()) throws -> Data {
+        try jsonWithCounts(items: items, books: books, exportedAt: exportedAt).data
+    }
+
+    /// JSON 导出主体：**一次遍历**同时产出字节与计数。
+    public static func jsonWithCounts(
+        items: [PlaylistNode], books: [ChapterBook], exportedAt: Date = Date()
+    ) throws -> (data: Data, counts: Counts) {
         let lookup = bookLookup(books)
-        let stats = statistics(items: items, books: books)
+        // 计数在**同一次遍历**里累计，不再单独跑一遍 statistics：
+        // 早先 statistics + convert 各算一次 MediaKey，PlayerCore 又先调了
+        // 一次 statistics —— 同一批文件被 stat+SHA256 三遍（2000 项实测 292ms）。
+        var media = 0, withChapters = 0, chapters = 0, favorites = 0
 
         func convert(_ node: PlaylistNode) -> ExportedNode {
-            let book = lookup[MediaKey.make(for: node.url)]
-            let chapters = (book?.isEmpty == false) ? book?.times : nil
-            return ExportedNode(
-                name: node.name,
-                path: node.url.path,
-                isFolder: node.resolvedIsFolder,
-                isFavorite: node.isFavorite,
-                chapters: chapters,
-                children: node.children.map { $0.map(convert) }
-            )
+            // 只在「有关键帧可匹配」时才付出 MediaKey 的代价
+            var times: [Int]?
+            if !lookup.isEmpty {
+                if let book = lookup[MediaKey.make(for: node.url)], !book.isEmpty {
+                    times = book.times
+                }
+            }
+            if node.resolvedIsFolder {
+                let children = (node.children ?? []).map(convert)
+                return ExportedNode(name: node.name, path: node.url.path,
+                                    isFolder: true, isFavorite: node.isFavorite,
+                                    chapters: nil, children: children)
+            }
+            media += 1
+            if node.isFavorite { favorites += 1 }
+            if let times {
+                withChapters += 1
+                chapters += times.count
+            }
+            return ExportedNode(name: node.name, path: node.url.path,
+                                isFolder: false, isFavorite: node.isFavorite,
+                                chapters: times, children: nil)
         }
 
+        let converted = items.map(convert)
         let payload = ExportedPlaylist(
             format: "gale-player-playlist",
             version: 1,
             exportedAt: isoTimestamp(exportedAt),
             counts: .init(
-                media: stats.media,
-                withChapters: stats.withChapters,
-                chapters: stats.chapters,
-                favorites: stats.favorites
+                media: media,
+                withChapters: withChapters,
+                chapters: chapters,
+                favorites: favorites
             ),
-            items: items.map(convert)
+            items: converted
         )
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(payload)
+        let data = try encoder.encode(payload)
+        return (data, Counts(media: media, withChapters: withChapters,
+                             chapters: chapters, favorites: favorites))
     }
 
     // MARK: - 工具

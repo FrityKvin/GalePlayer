@@ -640,7 +640,10 @@ final class PlayerCore: ObservableObject {
         }
 
         let books = chapterStore.allBooks()
-        let stats = PlaylistExporter.statistics(items: items, books: books)
+        // 先按默认格式生成一次（含计数），面板上的统计与最终写入共用这一份结果，
+        // 避免 statistics + export 各跑一遍 MediaKey（2000 项实测多花 ~100ms）。
+        let preview = PlaylistExporter.exportWithCounts(items: items, books: books, format: .json)
+        let stats = preview.counts
 
         let panel = NSSavePanel()
         panel.title = "导出播放列表"
@@ -654,7 +657,11 @@ final class PlayerCore: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         let format = PlaylistExportFormat.inferred(from: url)
-        guard let data = makePlaylistExport(format: format) else {
+        // 默认格式（.json）直接复用刚生成的结果；用户改成 .m3u8 才重新生成
+        let data = format == .json
+            ? preview.data
+            : PlaylistExporter.exportWithCounts(items: items, books: books, format: format).data
+        guard !data.isEmpty else {
             statusMessage = "导出失败：生成内容为空"
             return
         }

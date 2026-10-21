@@ -63,7 +63,7 @@ struct PlaylistPanel: View {
         HStack(spacing: 8) {
             Text("播放列表")
                 .font(.headline)
-            Text("\(settings.orderedMedia.count)")
+            Text("\(settings.mediaCount)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -98,16 +98,24 @@ struct PlaylistPanel: View {
             .frame(maxWidth: .infinity)
         } else {
             List(selection: $selection) {
-                ForEach(settings.playlistItems) { node in
+                // 规范化**一次**，逐行只做字符串比较（不要进 ForEach 调用规范化）
+                let playingPath = PlaylistPanel.canonicalPath(of: core.currentURL)
+                // 渲染**扁平化后的可见行**，而不是把文件夹的子项塞进一个 DisclosureGroup：
+                // List 只对顶层行做虚拟化，嵌在 DisclosureGroup 里的 2000 个子项会
+                // 全部实例化（实测 200 项主线程延迟 10.7ms → 2000 项 33.3ms、峰值 348ms）。
+                // 扁平化后折叠状态只影响数组内容，可见行数与 List 的懒加载对齐。
+                ForEach(visibleRows, id: \.node.id) { row in
                     PlaylistRow(
-                        node: node,
+                        node: row.node,
+                        depth: row.depth,
                         imageMode: settings.imageMode,
                         selection: $selection,
                         onToggleFavorite: { settings.toggleFavorite([$0]) },
-                        isCurrent: isCurrent(node),
+                        isCurrent: PlaylistRow.isCurrent(row.node, playingPath: playingPath),
                         expandedFolders: $expandedFolders,
-                        playingURL: core.currentURL
+                        playingPath: playingPath
                     )
+                    .moveDisabled(row.depth > 0)   // 只允许拖拽调整顶层顺序（与原行为一致）
                 }
                 .onMove { indices, newOffset in
                     settings.move(fromOffsets: indices, toOffset: newOffset)
@@ -130,7 +138,10 @@ struct PlaylistPanel: View {
                     }
                 }
             } primaryAction: { ids in
-                if let first = ids.first, let node = find(first, in: settings.playlistItems) {
+                // 文件夹行现在也可选中（有了 tag），双击它不该触发播放
+                if let first = ids.first,
+                   let node = find(first, in: settings.playlistItems),
+                   !node.resolvedIsFolder {
                     core.play(node: node, in: settings.orderedMedia)
                 }
             }
@@ -143,12 +154,15 @@ struct PlaylistPanel: View {
     /// 表现就是「播放列表不高亮正在播放的文件」。
     private func syncExpansionWithPlayback() {
         guard let current = core.currentURL else { return }
-        let target = path(of: current)
+        // 规范化一次即可：节点 URL 在创建/载入时已规范化，子项只需字符串比较。
+        // 旧写法对**每个子项**调 `path(of:)`（符号链接解析=系统调用），
+        // 2000 个子项每次换片就是 2000 次系统调用 —— 这是换集时的卡顿来源之一。
+        let target = Playlist.canonical(current).path
 
         func owner(_ nodes: [PlaylistNode]) -> PlaylistNode.ID? {
             for node in nodes {
                 if node.resolvedIsFolder {
-                    if node.flattenedMedia.contains(where: { path(of: $0.url) == target }) {
+                    if node.flattenedMedia.contains(where: { $0.url.path == target }) {
                         return node.id
                     }
                 }
@@ -246,8 +260,36 @@ struct PlaylistPanel: View {
     }
 
     /// 是否是正在播放的那一项（路径按 symlink 归一化后再比，避免 /tmp 与 /private/tmp 不一致）。
-    private func isCurrent(_ node: PlaylistNode) -> Bool {
-        PlaylistRow.isCurrent(node, playing: core.currentURL)
+    /// 当前播放路径的规范化形式（一次系统调用）；nil 表示没有在播。
+    static func canonicalPath(of url: URL?) -> String? {
+        url.map { Playlist.canonical($0).path }
+    }
+
+    /// 一行可见项：节点 + 缩进层级。
+    struct VisibleRow: Identifiable {
+        let node: PlaylistNode
+        let depth: Int
+        var id: PlaylistNode.ID { node.id }
+    }
+
+    /// 按「顶层项 + 已展开文件夹的子项」拉平成 List 可直接虚拟化的行数组。
+    ///
+    /// 子项本身已经是扁平的（拖入文件夹 = 一个 toggle + 递归扫出的媒体列表），
+    /// 所以只需一层展开，不需要递归。
+    private var visibleRows: [VisibleRow] {
+        var rows: [VisibleRow] = []
+        rows.reserveCapacity(settings.playlistItems.count * 2)
+        for node in settings.playlistItems {
+            rows.append(VisibleRow(node: node, depth: 0))
+            guard node.resolvedIsFolder,
+                  expandedFolders.contains(node.id),
+                  let children = node.children
+            else { continue }
+            for child in children {
+                rows.append(VisibleRow(node: child, depth: 1))
+            }
+        }
+        return rows
     }
 
     private func find(_ id: UUID, in nodes: [PlaylistNode]) -> PlaylistNode? {
@@ -259,18 +301,24 @@ struct PlaylistPanel: View {
     }
 }
 
-private struct PlaylistRow: View {
+struct PlaylistRow: View {   // internal：--perf-test 要量它的高亮判定成本
     /// 「这一行是不是正在播放」的**唯一**判定。
     ///
     /// 放在类型上而不是只放在 PlaylistPanel，是为了文件夹子项也能各自判断 ——
     /// 递归时若把父级（文件夹，恒为 false）的结果透传下去，所有子项就永远不高亮。
-    static func isCurrent(_ node: PlaylistNode, playing current: URL?) -> Bool {
-        guard let current, !node.resolvedIsFolder else { return false }
-        return current.resolvingSymlinksInPath().standardizedFileURL.path
-            == node.url.resolvingSymlinksInPath().standardizedFileURL.path
+    /// 传入的必须是**已规范化**的路径（`Playlist.canonical` 之后的 `.path`）：
+    /// 节点 URL 在创建/载入时已规范化，所以这里退化成纯字符串比较、零系统调用。
+    /// 早先的写法对「正在播放的 URL」和「每个行 URL」各调一次
+    /// `resolvingSymlinksInPath()`——1000 行就是 2000 次文件系统调用，
+    /// 实测 24ms/次重绘，长列表滚动卡顿的主因。
+    static func isCurrent(_ node: PlaylistNode, playingPath: String?) -> Bool {
+        guard let playingPath, !node.resolvedIsFolder else { return false }
+        return node.url.path == playingPath
     }
 
     let node: PlaylistNode
+    /// 缩进层级（0 = 顶层项，1 = 文件夹子项）
+    let depth: Int
     let imageMode: Bool
     @Binding var selection: PlaylistNode.ID?
     /// 切换星标；文件夹节点传 nil 表示不提供（避免整目录误标）。
@@ -279,37 +327,44 @@ private struct PlaylistRow: View {
     var isCurrent: Bool = false
     /// 所属面板的「自动展开」集合（文件夹行用它决定自己是否展开）
     @Binding var expandedFolders: Set<PlaylistNode.ID>
-    /// 当前正在播放的 URL（逐行判定高亮用）
-    let playingURL: URL?
+    /// 当前正在播放的规范化路径（逐行判定高亮用）
+    let playingPath: String?
+
+    private var isExpanded: Bool { expandedFolders.contains(node.id) }
+
+    /// 展开/收起自己（子项由 PlaylistPanel 的 visibleRows 负责生成）。
+    private func toggleExpansion() {
+        if isExpanded { expandedFolders.remove(node.id) }
+        else { expandedFolders.insert(node.id) }
+    }
 
     var body: some View {
-        if node.resolvedIsFolder, let children = node.children {
-            DisclosureGroup(isExpanded: Binding(
-                get: { expandedFolders.contains(node.id) },
-                set: { isOn in
-                    if isOn { expandedFolders.insert(node.id) } else { expandedFolders.remove(node.id) }
-                }
-            )) {
-                ForEach(children) { child in
-                    PlaylistRow(
-                        node: child,
-                        imageMode: imageMode,
-                        selection: $selection,
-                        onToggleFavorite: onToggleFavorite,
-                        // 必须**逐节点**判断，不能把父级的 isCurrent 透传下去：
-                        // 父级是文件夹，其 isCurrent 恒为 false，
-                        // 透传会让所有子项永远不高亮（这正是「文件夹内不高亮」的根因）。
-                        isCurrent: Self.isCurrent(child, playing: playingURL),
-                        expandedFolders: $expandedFolders,
-                        playingURL: playingURL
-                    )
-                }
-            } label: {
-                rowLabel
+        HStack(spacing: 6) {
+            if depth > 0 {
+                Spacer().frame(width: CGFloat(depth) * 14)
             }
-        } else {
-            rowLabel.tag(node.id)
+            // 文件夹：自绘展开箭头。不再用 DisclosureGroup ——
+            // 它会把子项全部塞进同一个 List cell，List 的虚拟化失效。
+            if node.resolvedIsFolder {
+                Button(action: toggleExpansion) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .frame(width: 14)
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "收起" : "展开")
+            } else if depth > 0 {
+                Spacer().frame(width: 14)
+            }
+            rowLabel
         }
+        // 高亮底色必须加在**行级**视图上：加在内层 HStack 上不生效
+        .listRowBackground(
+            isCurrent && !node.resolvedIsFolder
+                ? Color.accentColor.opacity(0.14)
+                : Color.clear
+        )
+        .tag(node.id)
     }
 
     private var rowLabel: some View {
@@ -352,11 +407,6 @@ private struct PlaylistRow: View {
             }
         }
         .padding(.vertical, imageMode ? 3 : 0)
-        .listRowBackground(
-            isCurrent && !node.resolvedIsFolder
-                ? Color.accentColor.opacity(0.14)
-                : Color.clear
-        )
     }
 }
 

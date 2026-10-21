@@ -51,12 +51,22 @@ final class AppSettings: ObservableObject {
         refresh()
     }
 
+    /// 播放顺序的媒体项缓存。
+    ///
+    /// 不再每次访问都 flatMap：列表变化时在 `refresh()` 里重算一次。
+    /// 视图里多处访问它（队列、头部计数、双击播放），每次重算 2000 项不划算。
+    private(set) var orderedMediaCache: [PlaylistNode] = []
+    private(set) var mediaCountCache = 0
+
     func refresh() {
         playlistItems = playlist.items
         recents = playlist.recents
+        orderedMediaCache = playlist.orderedMedia
+        mediaCountCache = playlist.mediaCount
     }
 
-    var orderedMedia: [PlaylistNode] { playlist.orderedMedia }
+    var orderedMedia: [PlaylistNode] { orderedMediaCache }
+    var mediaCount: Int { mediaCountCache }
 
     func addFiles(_ urls: [URL]) {
         playlist.add(files: urls, clearExisting: clearOnOpen)

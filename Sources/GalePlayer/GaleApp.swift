@@ -41,6 +41,10 @@ struct GaleApp: App {
         if ProcessInfo.processInfo.arguments.contains("--update-check") {
             UpdateCheckReport.run()
         }
+        // 播放列表性能自检：分阶段计时，先量后改
+        if PerfTest.isRequested() {
+            PerfTest.run()
+        }
 
         let directory = AppPaths.supportDirectory
         let settings = AppSettings(directory: directory)
