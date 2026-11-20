@@ -32,8 +32,60 @@ final class PlayerCore: ObservableObject {
     @Published private(set) var isFullScreen = false
 
     // 音量
+    //
+    // 实测（2026-11-20）：`mpv_set_property("volume")` 是**同步阻塞**调用，
+    // 单次 10.4ms（p95 16ms）。SwiftUI Slider 拖动时每帧都回调 didSet，
+    // 一次完整拖动（101 步）在主线程累计卡 1263ms → 表现为「拖滑条不跟手」。
+    //
+    // 修法：didSet 只把值交给节流器（≤60Hz）+ 写入派到后台队列。
+    // 主线程不再直接碰 mpv，拖动因此跟手；松手时 flush 保证最终值一定送达。
     @Published var volume: Double = 60 {
-        didSet { if !isSyncingFromCore { client?.setVolume(volume) } }
+        didSet {
+            if !isSyncingFromCore { scheduleVolumeWrite(volume) }
+        }
+    }
+
+    /// 音量写入节流器（interval = 1/60 秒；最后值由 flush 保证送达）。
+    private lazy var volumeThrottler = Throttler<Double>(interval: 1.0 / 60.0) { [weak self] value in
+        self?.writeVolumeInBackground(value)
+    }
+
+    /// 音量写入的后台串行队列：mpv 的同步调用移出主线程。
+    private let volumeQueue = DispatchQueue(label: "com.kevin.galeplayer.volume", qos: .userInteractive)
+
+    private func scheduleVolumeWrite(_ value: Double) {
+        volumeThrottler.push(value)
+    }
+
+    /// 松手/拖动结束时调用，保证最终音量一定写入 mpv。
+    func flushVolume() {
+        volumeThrottler.flush()
+    }
+
+    private func writeVolumeInBackground(_ value: Double) {
+        volumeWriteCount += 1   // 自检用：验证节流是否真的减少了写入次数
+        let client = self.client
+        volumeQueue.async {
+            client?.setVolume(value)
+        }
+    }
+
+    /// 供自检：实际派发的 mpv 写入次数（节流效果的直接证据）。
+    private(set) var volumeWriteCount = 0
+
+    func resetVolumeWriteCount() { volumeWriteCount = 0 }
+
+    /// 直接写 mpv 音量，**绕过** @Published / didSet / 节流链路。
+    ///
+    /// 只给自检用来量化「纯 mpv 写入耗时」与「节流后 UI 路径」的差异；
+    /// 正常 UI 一律改 `volume` 属性。
+    func setVolumeDirect(_ value: Double) {
+        client?.setVolume(value)
+    }
+
+    /// 供自检：从 mpv 读回**实际生效**的音量（验证节流末值是否真的送达）。
+    var appliedVolume: Double? {
+        client?.getDouble("volume")
     }
     @Published var isMuted = false {
         didSet { if !isSyncingFromCore { client?.setMuted(isMuted) } }
@@ -79,6 +131,11 @@ final class PlayerCore: ObservableObject {
     private var currentSpeed: Double = 1
 
     var onPlaybackEnded: (() -> Void)?
+
+    /// 本轮连续跳过的缺失项计数（防全缺失列表死循环，见 loadInto）。
+    private var missingSkipsThisRound = 0
+    /// 一轮允许跳过的缺失项上限（队列最多多长就最多跳多少）。
+    private let maxMissingSkipsPerRound = 256
 
     init(settings: AppSettings, chapterStore: ChapterStore) {
         self.settings = settings
@@ -205,7 +262,11 @@ final class PlayerCore: ObservableObject {
         case "eof":
             onPlaybackEnded?()
         case "end-file":
+            // 加载失败/被中断（reason != EOF）：释放 loading 状态。
+            // 注意：这里**不做**缺失推进——文件存在但解码失败（损坏盘/权限）与
+            // 「文件不在了」语义不同，缺失推进只在 loadInto 的存在性守卫里做。
             isLoading = false
+            isPlaying = false
         default:
             break
         }
@@ -334,6 +395,26 @@ final class PlayerCore: ObservableObject {
     }
 
     private func loadInto(_ node: PlaylistNode) {
+        // 缺失守卫：文件不在本机 → 不进 mpv（黑屏卡死的根因就是无守卫直发 loadfile），
+        // 打上缺失标记、Toast 提示、推进到下一个可播项。
+        //
+        // 防无限推进：一轮里跳过的缺失项超过队列长度时视为「全都不可播」，
+        // 停在原地只提示，不再继续（否则全缺失列表会死循环 playNext→loadInto→playNext）。
+        let nodePath = node.url.path
+        if !FileManager.default.fileExists(atPath: nodePath) {
+            settings.markMissing(nodePath)
+            statusMessage = "文件不存在，已跳过：\(node.name)"
+            guard missingSkipsThisRound < maxMissingSkipsPerRound else {
+                statusMessage = "列表里的文件都不在本机，无法播放"
+                missingSkipsThisRound = 0
+                return
+            }
+            missingSkipsThisRound += 1
+            playNext()
+            return
+        }
+        missingSkipsThisRound = 0
+
         // 视图尚未挂上时也要能加载（见 ensureClient 的说明）
         guard let client = ensureClient() else { return }
         currentURL = node.url
@@ -431,6 +512,7 @@ final class PlayerCore: ObservableObject {
 
     func adjustVolume(by delta: Double) {
         volume = min(max(0, volume + delta), 200)
+        flushVolume()   // 键盘离散操作：立即落 mpv
     }
 
     func setSpeed(_ speed: Double) {
@@ -812,6 +894,7 @@ final class PlayerCore: ObservableObject {
         let target = min(max(volume + step, 0), 200)
         volume = target
         if isMuted && target > 0 { isMuted = false }
+        flushVolume()   // 滚轮每次都是完整操作，立即落 mpv
         showToast("音量 \(Int(target))%")
     }
 
@@ -830,6 +913,7 @@ final class PlayerCore: ObservableObject {
         let percentPerPoint: CGFloat = 0.5
         let target = min(max(volume + Double(deltaY * percentPerPoint), 0), 200)
         volume = target
+        flushVolume()   // 中键拖动也是逐点累积，末值必须落 mpv
         showToast("音量 \(Int(target))%")
     }
 

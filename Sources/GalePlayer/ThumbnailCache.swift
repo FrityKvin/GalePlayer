@@ -1,4 +1,5 @@
 import AppKit
+import GaleCore
 import QuickLookThumbnailing
 
 /// 缩略图缓存：图文播放列表模式用（对应原版 `GenerateThumbnail:forPath:...`）。
@@ -44,11 +45,25 @@ final class ThumbnailCache {
 }
 
 /// 应用数据目录（关键帧 / 播放列表 / 设置）。
+///
+/// `active` 由 `GaleApp.init` 在启动时**一次性**写入（见 DataPaths）：
+/// 普通启动 = Application Support 真实目录；自检 = 进程唯一的一次性临时目录。
+/// 其他地方一律读 `AppPaths.active.directory`，不再自己去拼真实路径 ——
+/// 这样「自检污染真实数据」这一类事故在结构上不可能再发生。
 enum AppPaths {
+    /// 当前进程的数据目录解析结果。由 GaleApp.init 写入；未初始化时按普通启动解析。
+    nonisolated(unsafe) static var active: DataPaths.Resolved = DataPaths.resolve(
+        arguments: CommandLine.arguments
+    )
+
+    /// 当前生效的数据目录。
+    static var directory: URL { active.directory }
+
+    /// 真实目录（仅用于「明确需要真实数据」的场景，例如迁移提示与文档）。
     static var supportDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
-        let dir = base.appendingPathComponent("com.kevin.galeplayer", isDirectory: true)
+        let dir = base.appendingPathComponent(DataPaths.realDirectoryName, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

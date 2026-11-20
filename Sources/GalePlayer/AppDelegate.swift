@@ -65,6 +65,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppDelegate.core?.detach()
             AppDelegate.settings?.prepareForExit()
         }
+        // 自检模式：清理一次性沙盒目录（真实模式是 no-op）。
+        // 注意必须在数据落盘之后、且只在隔离模式下删 —— 真实目录永远不删。
+        DataPaths.cleanupIfNeeded(AppPaths.active)
     }
 }
 

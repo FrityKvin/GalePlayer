@@ -11,13 +11,25 @@ struct GaleApp: App {
     @StateObject private var hotKeys: HotKeyStore
 
     init() {
+        // 数据目录按运行模式分流：自检进程走一次性临时目录，绝不碰真实数据。
+        // 事故（2026-11-20）：自检里的 clearPlaylist() 清空了真实播放列表 ——
+        // 约束收敛到 DataPaths 这一处，任一自检都不会再污染用户数据。
+        let resolved = DataPaths.resolve(arguments: CommandLine.arguments)
+        AppPaths.active = resolved
+        if resolved.isIsolated {
+            NSLog("Gale 自检模式：数据目录隔离为 \(resolved.directory.path)")
+        }
+
         // 改名迁移必须放在**最前面**：它要赶在任何一处读取之前完成。
         // 设置与快捷键存在 UserDefaults（落盘域 = bundle id），
         // 播放列表/关键帧/播放进度存在 Application Support/<bundle-id>/，
         // 改 bundle id 后若不做迁移，这些数据会"凭空消失"。
-        let migrationReport = GaleMigration.runIfNeeded()
-        if !migrationReport.isEmpty {
-            for line in migrationReport { NSLog("Gale 迁移：\(line)") }
+        // 自检模式下跳过迁移：临时目录里没有旧数据，也没有必要读旧域。
+        if !resolved.isIsolated {
+            let migrationReport = GaleMigration.runIfNeeded()
+            if !migrationReport.isEmpty {
+                for line in migrationReport { NSLog("Gale 迁移：\(line)") }
+            }
         }
 
         // 自检模式：不开 GUI，直接把 mpv 加载/解码/渲染结果打出来
@@ -46,7 +58,7 @@ struct GaleApp: App {
             PerfTest.run()
         }
 
-        let directory = AppPaths.supportDirectory
+        let directory = AppPaths.active.directory
         let settings = AppSettings(directory: directory)
         let core = PlayerCore(
             settings: settings,
@@ -147,6 +159,30 @@ struct GaleApp: App {
                         Task { @MainActor in
                             try? await Task.sleep(for: .seconds(5))
                             HighlightTest.start(core: core, settings: settings)
+                        }
+                    }
+
+                    // 缺失文件自检：文件不在本机时必须「标记 + 跳过 + 推进」而不是卡死
+                    if MissingFileTest.isRequested() {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(5))
+                            MissingFileTest.start(core: core, settings: settings)
+                        }
+                    }
+
+                    // 文件夹再拖入自检：同路径文件夹重复拖入必须就地同步磁盘现状
+                    if FolderResyncTest.isRequested() {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(3))
+                            FolderResyncTest.start(core: core, settings: settings)
+                        }
+                    }
+
+                    // 音量延迟自检：量化滑条 → mpv 全链路的耗时
+                    if VolumeLatencyTest.isRequested() {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(4))
+                            VolumeLatencyTest.start(core: core)
                         }
                     }
 

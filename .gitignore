@@ -9,3 +9,23 @@ dist/
 # 调试时把测试视频/截图放 TestMedia/，发布完成后问 Kevin 是否清理。
 TestMedia/*
 !TestMedia/README.md
+
+# ── 用户数据兜底防护（绝不可提交）────────────────────────────
+# 真实数据存在 ~/Library/Application Support/com.kevin.galeplayer/，
+# 正常不会出现在仓库里；这里挡住「误拷/误拖到仓库」的情况 ——
+# 这些文件含用户播放列表、关键帧、播放进度（隐私）。
+playlist.json
+chapters.json
+playback-history.json
+*.chapters.json
+chapters.json.lock
+gale-data-backup/
+
+# 更新与签名相关（私钥/记录，永不入库）
+*.pem
+*.key
+appcast.xml
+
+# 旧品牌（Zephyr）时期的调试截图：已从仓库移除，不再跟踪。
+# 这些截图显示的是改名前的窗口标题，与当前的 Gale Player 不一致。
+Books/

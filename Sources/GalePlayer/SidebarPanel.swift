@@ -100,6 +100,7 @@ struct PlaylistPanel: View {
             List(selection: $selection) {
                 // 规范化**一次**，逐行只做字符串比较（不要进 ForEach 调用规范化）
                 let playingPath = PlaylistPanel.canonicalPath(of: core.currentURL)
+                let missingPaths = settings.missingMediaPaths
                 // 渲染**扁平化后的可见行**，而不是把文件夹的子项塞进一个 DisclosureGroup：
                 // List 只对顶层行做虚拟化，嵌在 DisclosureGroup 里的 2000 个子项会
                 // 全部实例化（实测 200 项主线程延迟 10.7ms → 2000 项 33.3ms、峰值 348ms）。
@@ -112,6 +113,7 @@ struct PlaylistPanel: View {
                         selection: $selection,
                         onToggleFavorite: { settings.toggleFavorite([$0]) },
                         isCurrent: PlaylistRow.isCurrent(row.node, playingPath: playingPath),
+                        isMissing: PlaylistRow.isMissing(row.node, missingPaths: missingPaths),
                         expandedFolders: $expandedFolders,
                         playingPath: playingPath
                     )
@@ -129,6 +131,9 @@ struct PlaylistPanel: View {
             .contextMenu(forSelectionType: PlaylistNode.ID.self) { ids in
                 let starred = ids.first
                     .flatMap { find($0, in: settings.playlistItems)?.isFavorite } ?? false
+                let firstMissing = ids.first
+                    .flatMap { find($0, in: settings.playlistItems) }
+                    .map { PlaylistRow.isMissing($0, missingPaths: settings.missingMediaPaths) } ?? false
                 Button(starred ? "取消星标" : "加星标") { settings.setFavorite(ids, to: !starred) }
                 if let first = ids.first,
                    let node = find(first, in: settings.playlistItems),
@@ -138,6 +143,7 @@ struct PlaylistPanel: View {
                             NSSound.beep()
                         }
                     }
+                    .disabled(firstMissing)
                 }
                 Divider()
                 Button("移除") { settings.remove(ids: ids) }
@@ -146,6 +152,7 @@ struct PlaylistPanel: View {
                         NSWorkspace.shared.activateFileViewerSelecting([node.url])
                     }
                 }
+                .disabled(firstMissing)
             } primaryAction: { ids in
                 // 文件夹行现在也可选中（有了 tag），双击它不该触发播放
                 if let first = ids.first,
@@ -325,6 +332,15 @@ struct PlaylistRow: View {   // internal：--perf-test 要量它的高亮判定�
         return node.url.path == playingPath
     }
 
+    /// 「这一行的文件是不是不在本机」的判定（与 isCurrent 同构：纯字符串比较）。
+    ///
+    /// 传入的必须也是**已规范化**的路径集合（`missingMediaPaths` 由
+    /// AppSettings 在列表变化时刷新，行渲染恒零文件系统调用）。
+    static func isMissing(_ node: PlaylistNode, missingPaths: Set<String>) -> Bool {
+        guard !node.resolvedIsFolder else { return false }
+        return missingPaths.contains(node.url.path)
+    }
+
     let node: PlaylistNode
     /// 缩进层级（0 = 顶层项，1 = 文件夹子项）
     let depth: Int
@@ -334,12 +350,21 @@ struct PlaylistRow: View {   // internal：--perf-test 要量它的高亮判定�
     var onToggleFavorite: ((PlaylistNode.ID) -> Void)?
     /// 是否正在播放（高亮用）
     var isCurrent: Bool = false
+    /// 文件不在本机（红色感叹号 + 灰显）
+    var isMissing: Bool = false
     /// 所属面板的「自动展开」集合（文件夹行用它决定自己是否展开）
     @Binding var expandedFolders: Set<PlaylistNode.ID>
     /// 当前正在播放的规范化路径（逐行判定高亮用）
     let playingPath: String?
 
     private var isExpanded: Bool { expandedFolders.contains(node.id) }
+
+    /// 文字颜色：正在播放=强调色；缺失=次要灰；普通=主色。
+    private var textColor: Color {
+        if isCurrent && !node.resolvedIsFolder { return .accentColor }
+        if isMissing { return .secondary }
+        return .primary
+    }
 
     /// 展开/收起自己（子项由 PlaylistPanel 的 visibleRows 负责生成）。
     private func toggleExpansion() {
@@ -399,9 +424,18 @@ struct PlaylistRow: View {   // internal：--perf-test 要量它的高亮判定�
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .fontWeight(isCurrent && !node.resolvedIsFolder ? .semibold : .regular)
-                .foregroundStyle(isCurrent && !node.resolvedIsFolder ? Color.accentColor : .primary)
+                .foregroundStyle(textColor)
+                .strikethrough(isMissing, color: .secondary)
 
             Spacer(minLength: 4)
+
+            // 缺失标记：文件不在本机 —— 红色感叹号（Kevin 指定样式）
+            if isMissing {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(red: 1.0, green: 0.27, blue: 0.23))
+                    .help("文件不在本机（可能已被移动或删除）")
+            }
 
             // 星标：点击直接切换，不影响选中与播放
             if let onToggleFavorite {

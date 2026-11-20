@@ -235,18 +235,50 @@ public final class Playlist: @unchecked Sendable {
 
     /// 打开文件夹 —— 原版 `creatElementsFromFolder:PLAYID:PARENTID:NEXTID:`。
     ///
-    /// 交互约定（Kevin 2026-10 确认）：拖入哪个文件夹，就只出现**这一个** toggle；
-    /// 其子项为该文件夹下**递归**扫描出的全部媒体文件（扁平一层，子文件夹
-    /// 不再各自成为节点），整体按相对路径自然序排列。
+    /// 交互约定（Kevin 2026-10 确认）：拖入哪个文件夹，就只出现**这一个** toggle；其
+    /// 子项为该文件夹下**递归**扫描出的全部媒体文件（扁平一层，子文件夹不再各自
+    /// 成为节点），整体按相对路径自然序排列。
+    ///
+    /// 同一路径的文件夹**再次拖入 = 就地同步**（Kevin 2026-11 报的真实缺陷）：
+    /// 旧实现按文件夹路径整包去重，磁盘上新增的影片永远进不来、删掉的影片永远
+    /// 留在列表里（children 是拖入时刻的静态快照）。现在：
+    ///   - 磁盘新增的子项补进来（按相对路径自然序插到正确位置）；
+    ///   - 磁盘上消失的子项移出去；
+    ///   - **存活的子项保留原节点**（id / 星标不变——否则星标会丢）；
+    ///   - toggle 自身 id 不变（展开状态依赖它），不产生第二个 toggle。
     public func add(folder url: URL, clearExisting: Bool? = nil) {
         let node = Self.folderNode(for: url)
         mutate { storage in
             if clearExisting ?? storage.clearOnOpen { storage.items.removeAll() }
-            // 同样要去重：同一目录重复拖入不该出现第二个 toggle，
-            // 也不该让展开后的媒体项翻倍（否则高亮会按路径命中多行）。
-            let fresh = Self.droppingDuplicates([node], in: storage.items)
-            storage.items.append(contentsOf: fresh)
+            // 同路径的已有文件夹 toggle：就地合并（同步磁盘现状），而不是整包丢弃。
+            if let index = storage.items.firstIndex(where: {
+                $0.resolvedIsFolder && Self.normalizedKey($0.url) == Self.normalizedKey(node.url)
+            }) {
+                storage.items[index] = Self.mergingFolder(storage.items[index], with: node)
+            } else {
+                // 全新文件夹：同样要走子项去重——子项可能已以散文件形态在列表里。
+                let fresh = Self.droppingDuplicates([node], in: storage.items)
+                storage.items.append(contentsOf: fresh)
+            }
         }
+    }
+
+    /// 把新扫描的文件夹节点合并进已有的同路径 toggle（见 `add(folder:)` 的同步语义）。
+    ///
+    /// - 存活子项：**保留旧节点**（id / isFavorite 原样），保证星标与选中态不丢；
+    /// - 磁盘新增子项：用新扫描的节点（全新 id，无星标）；
+    /// - 磁盘消失子项：不保留；
+    /// - 结果仍按扫描顺序（相对路径自然序）排列，新文件天然插到正确位置。
+    static func mergingFolder(_ existing: PlaylistNode, with fresh: PlaylistNode) -> PlaylistNode {
+        var byPath = [String: PlaylistNode]()
+        for child in existing.flattenedMedia {
+            byPath[Self.normalizedKey(child.url)] = child
+        }
+        var copy = existing
+        copy.children = fresh.flattenedMedia.map { child in
+            byPath[Self.normalizedKey(child.url)] ?? child
+        }
+        return copy
     }
 
     /// 追加已构造好的节点树（导入用；不做文件系统扫描）。

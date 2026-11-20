@@ -60,11 +60,16 @@ struct ControlBar: View {
         RenderCounters.controlBar += 1    // 资源自检用
         return GeometryReader { geometry in
             let density = Density(width: geometry.size.width)
-            VStack(spacing: 6) {
+            VStack(spacing: 0) {
                 seekBar(showsTime: density.showsTime)
-                // 三段布局：左（截图/音量）— 中（播放控制，居中）— 右（关键帧/全屏/面板）
-                // 左右两侧各占一份剩余空间（maxWidth: .infinity），播放控制才会真正居中，
-                // 而不是被左边的图标数量带偏。
+                    // 进度条固定在顶部，与按钮行之间留下 ControlBarLayout.gap
+                    // （旧布局只有 6pt，拖进度条容易误触播放控件）
+                    .padding(.top, ControlBarLayout.topPadding)
+                    .frame(height: ControlBarLayout.seekBarBottom, alignment: .top)
+
+                // 按钮行的上下两个弹性间距相等 → 自动落在「进度条底部 ↔ 窗口底边」的中点。
+                // 不用固定 spacing：窗口高度/密度变化时居中关系不会漂移。
+                Spacer(minLength: 0)
                 HStack(spacing: density.spacing) {
                     leading(density: density)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -72,13 +77,13 @@ struct ControlBar: View {
                     trailing(density: density)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                .frame(height: ControlBarLayout.buttonRowHeight)
+                .padding(.horizontal, ControlBarLayout.horizontalPadding)
+                Spacer(minLength: 0)
             }
-            .padding(.top, 8)
-            .frame(width: geometry.size.width, alignment: .top)
+            .frame(width: geometry.size.width, height: ControlBarLayout.totalHeight, alignment: .top)
         }
-        .frame(height: 76)
+        .frame(height: ControlBarLayout.totalHeight)
         .background(.bar)
     }
 
@@ -143,9 +148,17 @@ struct ControlBar: View {
                 core.toggleMute()
             }
             if let width = density.volumeWidth {
-                Slider(value: $core.volume, in: 0...200)
-                    .frame(width: width)
-                    .help("音量")
+                Slider(
+                    value: $core.volume,
+                    in: 0...200,
+                    onEditingChanged: { editing in
+                        // 松手时必须 flush：节流窗口内的最终值若不刷出去，
+                        // 音量会停在中途 —— 用户会以为「没调到」。
+                        if !editing { core.flushVolume() }
+                    }
+                )
+                .frame(width: width)
+                .help("音量")
             }
         }
         .fixedSize()
